@@ -16,8 +16,12 @@ unsigned long Where;    // debugging counter
 #define UsVsNature_Them 1    // 1: Us vs Nature game; 2: Us vs Them game
 #define PIB_MFA 1            // 1: Predicting individual behavior; 2: Mean-field approximation // forecast method
 
+#define AVERAGE_GRAPH_ONLY 0  // if 1, generate only average graphs and supress individual run graphs
+#define ALLDATAFILE 0        // if 1, generate all data files for individual runs and summary too 
+#define GRAPHS      0        // if 1, saves graphs as png files 
+
 #define INIT_COM_EFFORT rnd(2)              // 0 or 1
-#define INIT_LEAD_PUN_EFFORT 0.5
+#define INIT_LEAD_PUN_EFFORT 0.1
 #define INIT_LEAD_NORM_EFFORT 0.1
 
 // change values to 0 if update strategy for any one of commoner or lead is to be turned off
@@ -29,9 +33,7 @@ unsigned long Where;    // debugging counter
 #define SKIP 10           // time interval between snapshot of states
 #define STU 200             // summary time period for simulation
 
-#define AVERAGE_GRAPH_ONLY 0  // if 1, generate only average graphs and supress individual run graphs
-#define ALLDATAFILE 0        // if 1, generate all data files for individual runs and summary too 
-#define GRAPHS      0        // if 1, saves graphs as png files 
+
 
 
 void *Malloc(size_t size)
@@ -180,7 +182,7 @@ void prep_file(char *fname, char *apndStr)
  * apndStr: string to be appended to file name string
  */
 {
-  //sprintf(fname, "g%02dn%02db%0.2fB%.2ftu%.2ftd%.2feu%.2fed%.2fcx%.2fcy%.2fcz%.2fv1%.2fv2%.2fv3%.2fY0%.2fe%.2fE%.2fx0%.2fy0%.2fz0%.2f%s", G, n, b, B, Theta_u, Theta_d, Eta_u, Eta_d, cx, cy, cz, V1, V2, V3, Y0, e, E, x_0, y_0, z_0, apndStr);
+  sprintf(fname, "g%02dn%02dK%02db%0.2fk%0.2fdelta%.2fTheta%0.2fcx%.2fcy%.2fcz%.2fv1%.2fv2%.2fv3%.2fX0%.2fx0%.2f%s", G, n, K, b, k, delta, Theta, cx, cy, cz, V1, V2, V3, X0, x_0, apndStr);
 }
 
 // generates random number following exponential distribution
@@ -271,37 +273,403 @@ void cleanup()                                                       // cleans P
   freedist(Vdist);
 }
 
-/*
+
 void allocStatVar()
 {
   // allocate memory to store statistics points of snapshot along time period of simulaltion
   xmean = calloc((int)(T/SKIP+1), sizeof(double));         // for effort by commoners
-  ymean = calloc((int)(T/SKIP+1), sizeof(double));         // for effort by leaders
-  zmean = calloc((int)(T/SKIP+1), sizeof(double));         // for effort by chiefs
+  ymean = calloc((int)(T/SKIP+1), sizeof(double));         // for pun effort by leaders
+  zmean = calloc((int)(T/SKIP+1), sizeof(double));         // for norm effort by leaders
   pi0mean = calloc((int)(T/SKIP+1), sizeof(double));                   // for payoff of commoners
   pi1mean = calloc((int)(T/SKIP+1), sizeof(double));                   // for payoff of leaders
-  pi2mean = calloc((int)(T/SKIP+1), sizeof(double));                   // for payoff of chiefs
-  pmean = calloc((int)(T/SKIP+1), sizeof(double));                     // for punishment effort by leaders 
-  qmean = calloc((int)(T/SKIP+1), sizeof(double));                     // for punishment effort by chiefs
-  TUmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for tax paid by commoners to leaders
-  EUmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for tax paid by leaders to chiefs
-  TDmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for tax paid by commoners to leaders
-  EDmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for tax paid by leaders to chiefs
-  Pmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for group production 
-  Qmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for polity production // singling out B from BQ  
-  Mdist = allocdist(4);                                              // allocate memory for distribution for update strategy method
+  ucmean = calloc((int)(T/SKIP+1), sizeof(double));                     // for utility funciton of commoners 
+  ulmean = calloc((int)(T/SKIP+1), sizeof(double));                     // for utility function by leaders  
+  Pmean = calloc((int)(T/SKIP+1), sizeof(double));                    // for group production   
 }
-
-
 
 void clearStatVar()
 {
-  free(xmean); free(ymean); free(zmean); free(pi0mean); free(pi1mean); free(pi2mean); free(pmean); free(qmean);
-  free(TUmean); free(EUmean); free(TDmean); free(EDmean);
-  free(Pmean); free(Qmean);
-  freedist(Mdist);  
+  free(xmean); free(ymean); free(zmean); free(pi0mean); free(pi1mean); 
+  free(ucmean); free(ulmean);  
+  free(Pmean); 
 }
-*/
+
+// calculates all the stats
+void calcStat(int d, int r) 
+{
+  double xm = 0, ym = 0, zm = 0, p0m = 0, p1m = 0, ucm = 0, ulm = 0, Pm = 0;
+  int j, i, ncm, nl, l;    
+  group *g;
+  Commoner *com;
+  Leader *ld; 
+
+  static FILE **fp = NULL;  // file pointers for individual run  
+  if(d < 0){
+    for (l = 4; l--; fclose(fp[l]));
+    free(fp); 
+    return;
+  }     
+  
+  if(!d){   
+    char ixdata[200], ipdata[200], iudata[200], igpdata[200], tstr[100];
+    fp = malloc(4*sizeof(FILE *));    
+    sprintf(tstr, "x%d.dat", r); prep_file(ixdata, tstr);    
+    sprintf(tstr, "p%d.dat", r); prep_file(ipdata, tstr);    
+    sprintf(tstr, "u%d.dat", r); prep_file(iudata, tstr);    
+    sprintf(tstr, "gp%d.dat", r); prep_file(igpdata, tstr); 
+    fp[0] = fopen(ixdata, "w");
+    fp[1] = fopen(ipdata, "w");
+    fp[2] = fopen(iudata, "w");  
+    fp[3] = fopen(igpdata, "w");    
+    
+    // write headers       
+    fprintf(fp[0], "0 \t x\ty\tz\n");
+    fprintf(fp[1], "0 \t com\tlead\n");
+    fprintf(fp[2], "0 \t uc\t ul\n");
+    fprintf(fp[3], "0 \tP\n");    
+  }
+ 
+  // calculate stat of traits   
+  for(j = 0; j < G; j++){                                                         // through all groups
+    g = Polity->g+j;
+    // commoners
+    for(i = 0; i < n; i++){                                                       // through all commoners
+      com = g->com+i;
+      xm += com->x;                                                                // sum of commoner's effort
+      p0m += com->pi;                                                                // sum of commoner's payoff
+      ucm += com->uc;
+    }      
+    // leader stats
+    ld = g->lead;                                                                // ind == leader
+    ym += ld->y;                                                                // sum of leader's efforts
+    zm += ld->z;
+    p1m += ld->pi;                                                                 // sum of leader's payoff
+    ulm += ld->ul;                                                                   // sum of leader's punishment effort 
+
+    Pm += g->P;                                                                     // sum P over all groups        
+    } 
+  // compute averages of traits
+  ncm = G*n;         // total no. of commoners in system
+  nl  = G;           // total no. of leaders in system  
+  
+  xm /= ncm; 
+  p0m /= ncm;
+  ucm  /= ncm;
+  
+  ym /= nl;
+  zm /= nl;
+  p1m /= nl;
+  ulm /= nl;  
+  Pm /= nl;      
+  
+  // store in averages in variable as sum to average it after multiple runs
+  xmean[d] += xm;
+  ymean[d] += ym;
+  zmean[d] += zm;
+  pi0mean[d] += p0m;
+  pi1mean[d] += p1m;  
+  ucmean[d] += ucm;
+  ulmean[d] += ulm;  
+  Pmean[d] += Pm;  
+       
+  // write data for individual runs
+  fprintf(fp[0], "%d  %.4lf  %.4lf  %.4lf\n", d, xm, ym, zm);
+  fprintf(fp[1], "%d  %.4lf  %.4lf\n", d, p0m, p1m);
+  fprintf(fp[2], "%d  %.4lf  %.4lf\n", d, ucm, ulm);  
+  fprintf(fp[3], "%d  %.4lf\n", d, Pm);   
+#if !CLUSTER
+  // print final values for each run
+  if(k == T/SKIP){
+    printf("run#%d \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%lu\n", r, xm, ym, zm, p0m, p1m, ucm, ulm, Pm, Seed_i);  
+  }  
+#endif
+}
+
+void writeDataToFile()
+{
+  int j;
+  char xdata[200], pdata[200], udata[200], gpdata[200];
+  FILE **fp = malloc(7*sizeof(FILE *));    
+  prep_file(xdata, "x.dat");    
+  prep_file(pdata, "p.dat");    
+  prep_file(udata, "u.dat");   
+  prep_file(gpdata, "gp.dat");  
+  fp[0]= fopen(xdata, "w");
+  fp[1]= fopen(pdata, "w");
+  fp[2]= fopen(udata, "w");
+  fp[3]= fopen(gpdata, "w");  
+#if ALLDATAFILE
+  int stu = (T-STU)/SKIP;
+  double xsum = 0, ysum = 0, zsum = 0, p0sum = 0, p1sum = 0, ucsum = 0, ulsum = 0;  
+#endif  
+  // write headers
+  fprintf(fp[0], "0 \t x\ty\tz\n");
+  fprintf(fp[1], "0 \t com\tlead\n");
+  fprintf(fp[2], "0 \t uc \t ul\n");
+  fprintf(fp[3], "0 \t P\n");
+  
+  for(j = 0; j < (int)(T/SKIP)+1; j++){
+    // average accumulated mean values for multiple runs
+    xmean[j] /= (double)Runs;
+    ymean[j] /= (double)Runs;
+    zmean[j] /= (double)Runs;
+    pi0mean[j] /= (double)Runs;
+    pi1mean[j] /= (double)Runs;   
+    ucmean[j] /= (double)Runs;
+    ulmean[j] /= (double)Runs;    
+    Pmean[j] /= (double)Runs;   
+    // write data to file
+    fprintf(fp[0], "%d  %.4lf  %.4lf  %.4lf\n", j, xmean[j], ymean[j], zmean[j]);
+    fprintf(fp[1], "%d  %.4lf  %.4lf\n", j, pi0mean[j], pi1mean[j]);
+    fprintf(fp[2], "%d  %.4lf  %.4lf\n", j, ucmean[j], ulmean[j]); 
+    fprintf(fp[3], "%d  %.4lf\n", j, Pmean[j]);    
+    
+#if ALLDATAFILE
+    if(j < stu) continue;
+    xsum += xmean[j];
+    ysum += ymean[j];
+    zsum += zmean[j];
+    p0sum += pi0mean[j];
+    p1sum += pi1mean[j];
+    
+    ucsum += ucmean[j];
+    ulsum += ulmean[j];           
+#endif
+  }
+  
+#if ALLDATAFILE
+  double st = STU/SKIP + 1;
+  xsum /= st; ysum /= st; zsum /= st; p0sum /= st; p1sum /= st;  
+  ucsum /= st; ulsum /= st;                                     // computing average over summary period time
+ 
+  // write data to file
+  char  xsumdata[200], psumdata[200], usumdata[200];
+  prep_file(xsumdata, "xsum.dat");    
+  prep_file(psumdata, "psum.dat");    
+  prep_file(usumdata, "usum.dat");    
+  fp[4]= fopen(xsumdata, "w");
+  fp[5]= fopen(psumdata, "w");
+  fp[6]= fopen(usumdata, "w");
+  
+  // write headers  
+  fprintf(fp[4], "x\ty\tz\n");
+  fprintf(fp[5], "com\tlead\n");
+  fprintf(fp[6], "uc\t ul\n");
+  
+     
+  fprintf(fp[4], "%.4lf  %.4lf  %.4lf\n", xsum, ysum, zsum);
+  fprintf(fp[5], "%.4lf  %.4lf\n", p0sum, p1sum);
+  fprintf(fp[6], "%.4lf  %.4lf\n", ucsum, ulsum);     
+#endif  
+  
+// free file pointers
+  for(j = 0; j < 4; j++){
+    fclose(fp[j]);
+  } 
+#if ALLDATAFILE
+  for(j = 4; j < 7; j++){
+    fclose(fp[j]);
+  }
+#endif 
+  free(fp);
+  
+#if !CLUSTER
+  // print averaged final values
+  printf("\nAvg: \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \t%.4lf \n", xmean[T/SKIP], ymean[T/SKIP], zmean[T/SKIP],  pi0mean[T/SKIP], pi1mean[T/SKIP], ucmean[T/SKIP], ulmean[T/SKIP], Pmean[T/SKIP]);  
+#endif
+}
+
+void plotall(int m)
+/*
+ * m: 0 or 1; to save graphs as image file or not
+ */
+{ 
+  // write data to file
+  char xdata[200], pdata[200], udata[200], gpdata[200];
+  char title[200], xpng[200], str[100];
+  int datacolumn = 2+1;
+  sprintf(str, "x.dat"); prep_file(xdata, str);
+  sprintf(str, "p.dat"); prep_file(pdata, str);
+  sprintf(str, "u.dat"); prep_file(udata, str); 
+  sprintf(str, "gp.dat"); prep_file(gpdata, str);  
+  FILE * gp = popen ("gnuplot -persistent", "w"); // open gnuplot in persistent mode
+  sprintf(title, "b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, v:%d%d%d, x0:%.2f, X0:%.2f", b, K, k, delta, Theta, cx, cy, cz, (int)(V1*10), (int)(V2*10), (int)(V3*10), x_0, X0);
+  fprintf(gp, "set key outside vertical  spacing 1 width 1 height -2\n");        
+  if(m){ // save graphs as file
+    sprintf(xpng, "g%02dn%02dK%02db%0.2fk%.2fdelta%.2ftheta%.2fcx%.2fcy%.2fcz%.2fX0%.2fx0%.2fv%d%d%d.png", G, n, K, b, k, delta, Theta, cx, cy, cz, X0, x_0, (int)(V1*10), (int)(V2*10), (int)(V3*10)); 
+    fprintf(gp, "set term pngcairo size 1024,768 enhanced color solid font \"Helvetica,8\" \n");
+    fprintf(gp, "set output '%s' \n", xpng);
+  }
+  else{
+    fprintf(gp, "set term x11 dashed %d \n", 0);
+  }
+  fprintf(gp, "set lmargin at screen 0.1 \n");
+  fprintf(gp, "set rmargin at screen 0.8 \n");
+  
+  fprintf(gp, "stats '%s' using 2:3 prefix 'A' nooutput\n", xdata);
+  fprintf(gp, "stats '%s' using 4 prefix 'B' nooutput\n", xdata);
+  fprintf(gp, "stats '%s' using 2:3 prefix 'C' nooutput\n", pdata);
+  fprintf(gp, "stats '%s' using 2:3 prefix 'D' nooutput\n", udata);
+  fprintf(gp, "stats '%s' using 2 prefix 'E' nooutput\n", gpdata);  
+  
+
+  fprintf(gp, "set xlabel 'Time' \n");
+  fprintf(gp, "set title ''\n");
+  fprintf(gp, "set multiplot layout 4,1 title '%s' \n", title);    // set subplots layout
+  fprintf(gp, "set label 1 'Average' at screen 0.12,0.99 center font \",13\"\n");  // label to indicate average
+  
+  
+  fprintf(gp, "unset autoscale y\n");
+  fprintf(gp, "ymax = A_max_x\n");
+  fprintf(gp, "if(A_max_y > A_max_x) {ymax = A_max_y}\n");  
+  fprintf(gp, "if(ymax < B_max) {ymax = B_max}\n");
+  fprintf(gp, "if(ymax <= 0.0) {ymax = 1.0}\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "set yrange [0:ymax+ymax/10]\n");    
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'efforts' \n");  
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn+1, xdata);
+  fprintf(gp, "set ytics mirror\n");
+
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'payoff' \n");
+  fprintf(gp, "ymax = C_max_x\n");
+  fprintf(gp, "ymin = C_min_x\n");
+  fprintf(gp, "if(C_max_y > C_max_x) {ymax = C_max_y}\n");  
+  fprintf(gp, "if(C_min_y < C_min_x) {ymin = C_min_y}\n");  
+  fprintf(gp, "yr = ymax-ymin\n");
+  fprintf(gp, "set ytics yr/3 nomirror\n");
+  fprintf(gp, "set autoscale y\n");  
+  fprintf(gp, "set yrange [ymin:ymax+ymax/2]\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn, pdata);
+  fprintf(gp, "unset autoscale y\n");
+  
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'uc & ul' \n");
+  fprintf(gp, "ymax = D_max_x\n");
+  fprintf(gp, "if(D_max_y > D_max_x) {ymax = D_max_y}\n");
+  fprintf(gp, "if(ymax < 0.05) {ymax = 1.0}\n");
+  fprintf(gp, "ymin = D_min_x\n");
+  fprintf(gp, "if(D_min_y < D_min_x) {ymin = D_min_y}\n");
+  fprintf(gp, "set yrange [ymin:ymax+0.1]\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn, udata);  
+  
+  fprintf(gp, "set ylabel 'P' \n");
+  fprintf(gp, "ymax = E_max\n");  
+  fprintf(gp, "if(ymax < 0.05) {ymax = 1.0}\n");
+  fprintf(gp, "set yrange [0:ymax+0.01]\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn-1, gpdata);
+  fprintf(gp, "unset label 1\n");
+  fprintf(gp, "unset multiplot \n");
+  
+  fflush(gp); 
+  pclose(gp);  
+  
+#if !CLUSTER
+#if !ALLDATAFILE
+  remove(xdata);
+  remove(pdata);
+  remove(udata);
+  remove(gpdata);  
+#endif
+#endif
+}
+
+void plotallIndividualRun(int r, int m)
+/*
+ * r: run
+ * m: 0 or 1; to save graphs as image file or not
+ */
+{
+  // write data to file
+  char xdata[200], pdata[200], udata[200], gpdata[200];
+  char title[200], xpng[200], str[100];
+  int datacolumn = 2+1;
+  sprintf(str, "x%d.dat", r); prep_file(xdata, str);
+  sprintf(str, "p%d.dat", r); prep_file(pdata, str);
+  sprintf(str, "u%d.dat", r); prep_file(udata, str); 
+  sprintf(str, "gp%d.dat", r); prep_file(gpdata, str);  
+  FILE * gp = popen ("gnuplot -persistent", "w"); // open gnuplot in persistent mode
+  sprintf(title, "b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, v:%d%d%d, x0:%.2f, X0:%.2f", b, K, k, delta, Theta, cx, cy, cz, (int)(V1*10), (int)(V2*10), (int)(V3*10), x_0, X0);
+  fprintf(gp, "set key outside vertical  spacing 1 width 1 height -2\n");        
+  if(m){ // save graphs as file
+    sprintf(xpng, "g%02dn%02dK%02db%0.2fk%.2fdelta%.2ftheta%.2fcx%.2fcy%.2fcz%.2fX0%.2fx0%.2fv%d%d%d_%d.png", G, n, K, b, k, delta, Theta, cx, cy, cz, X0, x_0, (int)(V1*10), (int)(V2*10), (int)(V3*10), r); 
+    fprintf(gp, "set term pngcairo size 1024,768 enhanced color solid font \"Helvetica,8\" \n");
+    fprintf(gp, "set output '%s' \n", xpng);
+  }
+  else{
+    fprintf(gp, "set term x11 dashed %d \n", 0);
+  }
+  fprintf(gp, "set lmargin at screen 0.1 \n");
+  fprintf(gp, "set rmargin at screen 0.8 \n");
+  
+  fprintf(gp, "stats '%s' using 2:3 prefix 'A' nooutput\n", xdata);
+  fprintf(gp, "stats '%s' using 4 prefix 'B' nooutput\n", xdata);
+  fprintf(gp, "stats '%s' using 2:3 prefix 'C' nooutput\n", pdata);
+  fprintf(gp, "stats '%s' using 2:3 prefix 'D' nooutput\n", udata);
+  fprintf(gp, "stats '%s' using 2 prefix 'E' nooutput\n", gpdata);  
+  
+
+  fprintf(gp, "set xlabel 'Time' \n");
+  fprintf(gp, "set title ''\n");
+  fprintf(gp, "set multiplot layout 4,1 title '%s' \n", title);    // set subplots layout
+  fprintf(gp, "set label 1 'run: %d' at screen 0.13,0.98 center font \",13\"\n", r);  // label to indicate individual run index
+  
+  
+  fprintf(gp, "unset autoscale y\n");
+  fprintf(gp, "ymax = A_max_x\n");
+  fprintf(gp, "if(A_max_y > A_max_x) {ymax = A_max_y}\n");  
+  fprintf(gp, "if(ymax < B_max) {ymax = B_max}\n");
+  fprintf(gp, "if(ymax <= 0.0) {ymax = 1.0}\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "set yrange [0:ymax+ymax/10]\n");    
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'efforts' \n");  
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn+1, xdata);
+  fprintf(gp, "unset y2tics\n set ytics mirror\n");
+
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'payoff' \n");
+  fprintf(gp, "ymax = C_max_x\n");
+  fprintf(gp, "ymin = C_min_x\n");
+  fprintf(gp, "if(C_max_y > C_max_x) {ymax = C_max_y}\n");  
+  fprintf(gp, "if(C_min_y < C_min_x) {ymin = C_min_y}\n");  
+  fprintf(gp, "yr = ymax-ymin\n");
+  fprintf(gp, "set ytics yr/3 nomirror\n");
+  fprintf(gp, "set autoscale y\n");  
+  fprintf(gp, "set yrange [ymin:ymax+ymax/2]\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn, pdata);
+  fprintf(gp, "unset autoscale y\n");
+  
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'uc & ul' \n");
+  fprintf(gp, "ymax = D_max_x\n");
+  fprintf(gp, "if(D_max_y > D_max_x) {ymax = D_max_y}\n");
+  fprintf(gp, "if(ymax < 0.05) {ymax = 1.0}\n");
+  fprintf(gp, "set yrange [:ymax+0.1]\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn, udata);  
+  
+  fprintf(gp, "set ylabel 'P' \n");
+  fprintf(gp, "ymax = E_max\n");  
+  fprintf(gp, "if(ymax < 0.05) {ymax = 1.0}\n");
+  fprintf(gp, "set yrange [0:ymax+0.01]\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", datacolumn-1, gpdata);
+  fprintf(gp, "unset label 1\n");
+  fprintf(gp, "unset multiplot \n");
+  
+  fflush(gp); 
+  pclose(gp);  
+}
 
 double P(double X, double SX)
 /*
@@ -568,12 +936,12 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
   z[0] = ld->z;  
   for(i = 1; i < K+1; i++){
 #if UPDATE_LEAD_PUN_EFFORT
-    y[i] = normal(ld->y, Sigma);
+    y[i] = MIN(MAX(normal(ld->y, Sigma), 0.0), 1.0);
 #else
     y[i] = ld->y;
 #endif
 #if UPDATE_LEAD_NORM_EFFORT
-    z[i] = normal(ld->z, Sigma);
+    z[i] = MIN(MAX(normal(ld->z, Sigma), 0.0), 1.0);
 #else
     z[i] = ld->z;
 #endif
@@ -593,7 +961,7 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
 #else
     X2[i] = F(X1, y[i], z[i]);
 #endif
-    ul[i] = u_l(y[i], z[i], X1, X2, SX1-X1+X2[i]);                    // utility function
+    ul[i] = u_l(y[i], z[i], X1, X2[i], SX1-X1+X2[i]);                    // utility function
     ul_dist->p[i] = exp(ul[i]*Lambda);
     s += ul_dist->p[i];
   }
@@ -665,6 +1033,7 @@ void playGame()
   for(j = 0; j < G; j++){
     calcP(j, SX);                   // updates group production value for each group
     calcPayoff(j);                  // updates payoff of groups
+    calcUtilityFunction(j, SX);
     updateStrategy(j, SX);             // updates strategy for group j
   }
 }
@@ -719,7 +1088,7 @@ int main(int argc, char **argv)
   }    
   
   initrand(Seed);
-  //allocStatVar();                                             // allocate memory for global statistic variables
+  allocStatVar();                                             // allocate memory for global statistic variables
   int r, i;
   unsigned long seed;  
 #if !ALLDATAFILE
@@ -740,7 +1109,6 @@ int main(int argc, char **argv)
     else{
       seed = Seed;
     }
-    //seed = 1461867884;
     Seed_i = seed;
     initrand(seed);      
     
@@ -748,46 +1116,48 @@ int main(int argc, char **argv)
     // setup and initialize variables
     setup();                                                  // allocates memory for all polity system variables
     init();                                                   // intialize polity system state values
-    //calcStat(0, r);
+    calcStat(0, r);
     for( i = 0; i < T; i++){                                  // through all time points of simulation
       playGame();                                             // play us vs nature and us vs them game and update strategies
       if( (i+1) % SKIP == 0){                                 // every SKIP time, take snapshot of states of traits	
-	//calcStat((i+1)/SKIP, r);                              // calculate statistics and write individual runs data to file
+	calcStat((i+1)/SKIP, r);                              // calculate statistics and write individual runs data to file
       }   
     }
-    //calcStat(-1, -1);                                        // free file pointers for individual run data files
-    /*
+    calcStat(-1, -1);                                        // free file pointers for individual run data files
+
 #if !CLUSTER
     
-#if !AVERAGE_GRAPH_ONLY
-    if(Runs > 1)
-      plotallIndividualRun(r, 0); 
-#endif
-    
-#if GRAPHS
-    if(Runs > 1)
-      plotallIndividualRun(r, 1);
-#endif
-    // remove individual datafiles if ALLDATAFILE set to 0
-#if !ALLDATAFILE        
-      sprintf(str, "x%d.dat", r); prep_file(xdata, str); remove(xdata);
-      sprintf(str, "p%d.dat", r); prep_file(xdata, str); remove(xdata);
-      sprintf(str, "u%d.dat", r); prep_file(xdata, str); remove(xdata);
-      sprintf(str, "gp%d.dat", r); prep_file(xdata, str); remove(xdata);           
-#endif
+  #if !AVERAGE_GRAPH_ONLY
+      if(Runs > 1)
+	plotallIndividualRun(r, 0); 
+  #endif
+      
+  #if GRAPHS
+      if(Runs > 1)
+	plotallIndividualRun(r, 1);
+  #endif
+      // remove individual datafiles if ALLDATAFILE set to 0
+  #if !ALLDATAFILE        
+	sprintf(str, "x%d.dat", r); prep_file(xdata, str); remove(xdata);
+	sprintf(str, "p%d.dat", r); prep_file(xdata, str); remove(xdata);
+	sprintf(str, "u%d.dat", r); prep_file(xdata, str); remove(xdata);
+	sprintf(str, "gp%d.dat", r); prep_file(xdata, str); remove(xdata);           
+  #endif
       
 #endif
-      */
+   
     cleanup();                                                // free all memory allocated for polity system
   }
-  /*writeDataToFile();  
+  writeDataToFile();  
   clearStatVar();                                             // free other memory allocated for statistics variables
+
 #if !CLUSTER
   plotall(0);
 #if GRAPHS
   plotall(1);
 #endif
-#endif    */
+#endif    
+  
   return 1;
 }
 
