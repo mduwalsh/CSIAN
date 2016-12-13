@@ -180,7 +180,7 @@ void prep_file(char *fname, char *apndStr)
  * apndStr: string to be appended to file name string
  */
 {
-  sprintf(fname, "g%02dn%02db%0.2fB%.2ftu%.2ftd%.2feu%.2fed%.2fcx%.2fcy%.2fcz%.2fv1%.2fv2%.2fv3%.2fY0%.2fe%.2fE%.2fx0%.2fy0%.2fz0%.2f%s", G, n, b, B, Theta_u, Theta_d, Eta_u, Eta_d, cx, cy, cz, V1, V2, V3, Y0, e, E, x_0, y_0, z_0, apndStr);
+  //sprintf(fname, "g%02dn%02db%0.2fB%.2ftu%.2ftd%.2feu%.2fed%.2fcx%.2fcy%.2fcz%.2fv1%.2fv2%.2fv3%.2fY0%.2fe%.2fE%.2fx0%.2fy0%.2fz0%.2f%s", G, n, b, B, Theta_u, Theta_d, Eta_u, Eta_d, cx, cy, cz, V1, V2, V3, Y0, e, E, x_0, y_0, z_0, apndStr);
 }
 
 // generates random number following exponential distribution
@@ -244,7 +244,7 @@ void merge_sort_key_value (int *a, double *v, int n) {
 // allocate memory for system
 void setup()
 {
-  int h, j;
+  int j;
   group *g;
   // allocate memory for Polity and groups and commoners
   Polity = malloc(sizeof(polity));                                // one polity 
@@ -332,9 +332,9 @@ double s(double X)
 // utility function
 double u(unsigned int x1, unsigned int x0, double X, double y, double z, double SX)
 {  
-  double s = s(X);
+  double _s = s(X);
   double pi_c = (1.0-Theta)*b*P(X-x0+x1,SX-x0+x1) - cx*x1 - k*y*(1.0-x1);            // expected material payoff for commoners
-  return (1.0-s)*pi_c + s*z*x1;
+  return (1.0-_s)*pi_c + _s*z*x1;
 }
 
 // returns x' using myopic optimization for commoners
@@ -389,7 +389,7 @@ double F(double X, double y, double z)
 // returns utility function leader trying to maximize
 double u_l(double y, double z, double X1, double X2, double SX2)
 {
-  return (-)cy*n*y - cz*z - delta*(n-X1)*y + Theta*b*P(X2, SX2);
+  return -cy*n*y - cz*z - delta*(n-X1)*y + Theta*b*P(X2, SX2);
 }
 
 // calculates group effort X
@@ -408,7 +408,7 @@ void calcX(int j)
 void calcP(int j, double SX)
 {
   group *g = Polity->g+j;
-  g->P = P(X, SX);
+  g->P = P(g->X, SX);
 }
 
 // calculates payoff of a group j
@@ -487,7 +487,7 @@ void updateStrategyCommoner(int v, int j, int i, double y, double z, double SX)
     else{                                                     // choose commoner from another group c in same polity
       int c = j;
       if(G > 1){                                              // if more than one group in polity, choose different group
-	do{ c = rnd(p->ng); }while(c == j);	                  // select group c (another group to copy from)
+	do{ c = rnd(G); }while(c == j);	                  // select group c (another group to copy from)
       }      
       a = rnd(n);                                             // select another individual in group b
       if(Polity->g[c].com[a].pi > com->pi){
@@ -593,7 +593,7 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
 #else
     X2[i] = F(X1, y[i], z[i]);
 #endif
-    ul[i] = u_l(y[i], z[i], X1, X2, SX1-X1+X2);                    // utility function
+    ul[i] = u_l(y[i], z[i], X1, X2, SX1-X1+X2[i]);                    // utility function
     ul_dist->p[i] = exp(ul[i]*Lambda);
     s += ul_dist->p[i];
   }
@@ -616,7 +616,6 @@ void updateStrategy(int j, double SX)
 {
   group *g = Polity->g+j;
   Leader *ld = g->lead;
-  Commoner *com;
   int i, v;
   double y, z;
   y = ld->y;
@@ -630,7 +629,7 @@ void updateStrategy(int j, double SX)
     updateStrategyLeader_V2(j);
   }
   else if(v == 3){
-    unsigned int *x0 = malloc(n*sizeof(unsigned int)):
+    unsigned int *x0 = malloc(n*sizeof(unsigned int));
     for(i = 0; i < n; i++){
       x0[i] = (g->com+i)->x;
     }
@@ -653,6 +652,7 @@ void updateStrategy(int j, double SX)
 void playGame()
 {
   int j;
+  double SX;
   group *g;
   // update X for every group in this round
   for(SX = 0, j = 0; j < G; j++){
@@ -676,7 +676,7 @@ void init()
   Leader *ld;
   Commoner *com;
   int i, j;
-  for(j = 0; j < G: j++){
+  for(j = 0; j < G; j++){
     g = Polity->g+j;
     ld = g->lead;
     for(i = 0; i < n; i++){
@@ -704,10 +704,107 @@ void init()
   initdist(Vdist, 1);      
 }
 
-int main()
+int main(int argc, char **argv)
 {
+#if DEBUG
+  feenableexcept(FE_DIVBYZERO| FE_INVALID|FE_OVERFLOW); // enable exceptions
+#endif
+  if(argc ^ 2){
+    printf("Usage: ./csi csi.config\n");
+    exit(1);
+  }
+  if(read_config(argv[1])){           // read config
+    printf("READDATA: Can't process %s \n", argv[1]);
+    return 1;
+  }    
   
+  initrand(Seed);
+  //allocStatVar();                                             // allocate memory for global statistic variables
+  int r, i;
+  unsigned long seed;  
+#if !ALLDATAFILE
+  char xdata[200], str[30];
+#endif
+  time_t now;     
+  // print headers for values to be displayed on std output
+#if !CLUSTER
+  printf("\nValues:\t  x\t  y\t  z\t  pi_0\t  pi_1\t   uc\t  ul\t  P\t  seed\n");
+#endif
+  
+  for( r = 0; r < Runs; r++){                                 // through all sets of runs    
+    // initialize pseudorandom generator with seed
+    if(Seed == 0){      
+      now = time(0);
+      seed = ((unsigned long)now) + r;  
+    }
+    else{
+      seed = Seed;
+    }
+    //seed = 1461867884;
+    Seed_i = seed;
+    initrand(seed);      
+    
+    //printf("\n run# %d seed: %lu\n",r+1, seed);
+    // setup and initialize variables
+    setup();                                                  // allocates memory for all polity system variables
+    init();                                                   // intialize polity system state values
+    //calcStat(0, r);
+    for( i = 0; i < T; i++){                                  // through all time points of simulation
+      playGame();                                             // play us vs nature and us vs them game and update strategies
+      if( (i+1) % SKIP == 0){                                 // every SKIP time, take snapshot of states of traits	
+	//calcStat((i+1)/SKIP, r);                              // calculate statistics and write individual runs data to file
+      }   
+    }
+    //calcStat(-1, -1);                                        // free file pointers for individual run data files
+    /*
+#if !CLUSTER
+    
+#if !AVERAGE_GRAPH_ONLY
+    if(Runs > 1)
+      plotallIndividualRun(r, 0); 
+#endif
+    
+#if GRAPHS
+    if(Runs > 1)
+      plotallIndividualRun(r, 1);
+#endif
+    // remove individual datafiles if ALLDATAFILE set to 0
+#if !ALLDATAFILE        
+      sprintf(str, "x%d.dat", r); prep_file(xdata, str); remove(xdata);
+      sprintf(str, "p%d.dat", r); prep_file(xdata, str); remove(xdata);
+      sprintf(str, "u%d.dat", r); prep_file(xdata, str); remove(xdata);
+      sprintf(str, "gp%d.dat", r); prep_file(xdata, str); remove(xdata);           
+#endif
+      
+#endif
+      */
+    cleanup();                                                // free all memory allocated for polity system
+  }
+  /*writeDataToFile();  
+  clearStatVar();                                             // free other memory allocated for statistics variables
+#if !CLUSTER
+  plotall(0);
+#if GRAPHS
+  plotall(1);
+#endif
+#endif    */
+  return 1;
 }
+
+/* 
+gcc -Wall -O2 -march=native -pipe -o csi csi.c -lm
+./csi csi.config
+valgrind -v --track-origins=yes --leak-check=full --show-leak-kinds=all ./csi csi.config
+gcc -g -o csi csi.c -lm
+gdb csi
+run csi.config
+
+//profiling code
+gcc -Wall -O2 -march=native -pipe -pg csi.c -o csi -lm
+./csi csi.config
+ gprof csi gmon.out > analysis.txt  
+*/
+
 
 
 
