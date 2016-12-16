@@ -738,9 +738,9 @@ double F(double X, double y, double z, unsigned int *x0, unsigned int *x1, doubl
 // returns new forecasted sum of efforts from commoners given y and z
 double F(double X, double y, double z)
 {
-  double s = s(X);
+  double _s = s(X);
   double B = (1.0 - Theta)*b;
-  double C = cx - k*y - (s*z)/(1.0-s);
+  double C = cx - k*y - (_s*z)/(1.0-_s);
 #if UsVsNature_Them == 1  
   double R = B/(C*X0);
   if(R > 1.0)
@@ -1086,7 +1086,14 @@ int main(int argc, char **argv)
     printf("READDATA: Can't process %s \n", argv[1]);
     return 1;
   }    
-  
+  if(s0 > 1.0){
+    printf("s0 value should be less than 1.0\n");
+    exit(1);
+  }
+  if((s0+s1) > 1.0){
+    printf("s0+s1 value should be less than 1.0\n");
+    exit(1);
+  }
   initrand(Seed);
   allocStatVar();                                             // allocate memory for global statistic variables
   int r, i;
