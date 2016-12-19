@@ -2,13 +2,13 @@ CC = gcc
 LIBS = -lm
 CFLAGS = -Wall -O2 -march=native
 
-EXECUTABLES = csi 
+EXECUTABLES = prop 
 
 .PHONY: all clean
 
 all: $(EXECUTABLES)
 
-csi: csi.o
+prop: prop.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 clean:
