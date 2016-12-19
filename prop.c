@@ -14,15 +14,15 @@ unsigned long Where;    // debugging counter
 #include "rand.c"
 
 #define UsVsNature_Them 1    // 1: Us vs Nature game; 2: Us vs Them game
-#define PIB_MFA 1            // 1: Predicting individual behavior; 2: Mean-field approximation // forecast method
+#define PIB_MFA 2            // 1: Predicting individual behavior; 2: Mean-field approximation // forecast method
 
 #define AVERAGE_GRAPH_ONLY 0  // if 1, generate only average graphs and supress individual run graphs
 #define ALLDATAFILE 0        // if 1, generate all data files for individual runs and summary too 
 #define GRAPHS      0        // if 1, saves graphs as png files 
 
 #define INIT_COM_EFFORT rnd(2)              // 0 or 1
-#define INIT_LEAD_PUN_EFFORT U01()
-#define INIT_LEAD_NORM_EFFORT U01()
+#define INIT_LEAD_PUN_EFFORT 0.1*U01()
+#define INIT_LEAD_NORM_EFFORT 0.1*U01()
 
 // change values to 0 if update strategy for any one of commoner or lead is to be turned off
 #define UPDATE_COM 1
@@ -384,7 +384,7 @@ void calcStat(int d, int r)
   fprintf(fp[3], "%d  %.4lf\n", d, Pm);   
 #if !CLUSTER
   // print final values for each run
-  if(k == T/SKIP){
+  if(d == T/SKIP){
     printf("run#%d \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%lu\n", r, xm, ym, zm, p0m, p1m, ucm, ulm, Pm, Seed_i);  
   }  
 #endif
@@ -479,8 +479,8 @@ void writeDataToFile()
   free(fp);
   
 #if !CLUSTER
-  // print averaged final values
-  printf("\nAvg: \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \n", xmean[T/SKIP], ymean[T/SKIP], zmean[T/SKIP],  pi0mean[T/SKIP], pi1mean[T/SKIP], ucmean[T/SKIP], ulmean[T/SKIP], Pmean[T/SKIP]);  
+  // print averaged final values  
+  printf("\nAvg: \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \t%.3lf \n", xmean[T/SKIP], ymean[T/SKIP], zmean[T/SKIP],  pi0mean[T/SKIP], pi1mean[T/SKIP], ucmean[T/SKIP], ulmean[T/SKIP], Pmean[T/SKIP]);    
 #endif
 }
 
@@ -963,10 +963,7 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
     z[i] = MIN(z[i], 1.0);
 #else
     z[i] = ld->z;
-#endif
-    if(y[i] < 0.0 || z[i] < 0.0){
-      printf("y0:%.2f, y1: %.2f, z0:%.2f, z1:%.2f\n", ld->y, y[i], ld->z, z[i]);
-    }        
+#endif         
   }
 #if PIB_MFA == 1      // Predicting individual behavior
   X1 = F(X, ld->y, ld->z, x0, x1, SX);                      // forecasted X for present y and z
