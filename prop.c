@@ -13,16 +13,19 @@ unsigned long Where;    // debugging counter
 
 #include "rand.c"
 
+#define TestPlot 1            // plot test group statistics or not
+#define TestG 3               // test group index
+
 #define UsVsNature_Them 1    // 1: Us vs Nature game; 2: Us vs Them game
 #define PIB_MFA 2            // 1: Predicting individual behavior; 2: Mean-field approximation // forecast method
 
-#define AVERAGE_GRAPH_ONLY 0  // if 1, generate only average graphs and supress individual run graphs
+#define AVERAGE_GRAPH_ONLY 1  // if 1, generate only average graphs and supress individual run graphs
 #define ALLDATAFILE 0        // if 1, generate all data files for individual runs and summary too 
 #define GRAPHS      0        // if 1, saves graphs as png files 
 
 #define INIT_COM_EFFORT rnd(2)              // 0 or 1
-#define INIT_LEAD_PUN_EFFORT 0.1*U01()
-#define INIT_LEAD_NORM_EFFORT 0.1*U01()
+#define INIT_LEAD_PUN_EFFORT U01()
+#define INIT_LEAD_NORM_EFFORT U01()
 
 // change values to 0 if update strategy for any one of commoner or lead is to be turned off
 #define UPDATE_COM 1
@@ -498,7 +501,7 @@ void plotall(int m)
   sprintf(str, "u.dat"); prep_file(udata, str); 
   sprintf(str, "gp.dat"); prep_file(gpdata, str);  
   FILE * gp = popen ("gnuplot -persistent", "w"); // open gnuplot in persistent mode
-  sprintf(title, "b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, x0:%.2f, vc:%d%d%d, vl:%d%d%d", b, K, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10));
+  sprintf(title, "n:%d, b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, x0:%.2f, vc:%d%d%d, vl:%d%d%d", n, b, K, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10));
   fprintf(gp, "set key outside vertical  spacing 1 width 1 height -2\n");        
   if(m){ // save graphs as file
     sprintf(xpng, "g%02dn%02dK%02db%0.2fk%.2fdelta%.2ftheta%.2fcx%.2fcy%.2fcz%.2fx0%.2fvc%d%d%dvl:%d%d%d.png", G, n, K, b, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10)); 
@@ -518,7 +521,7 @@ void plotall(int m)
   fprintf(gp, "stats '%s' using 2 prefix 'E' nooutput\n", gpdata);  
   
 
-  fprintf(gp, "set xlabel 'Time' \n");
+  fprintf(gp, "set xlabel 'Time(X%lu)' \n", (unsigned long)SKIP);
   fprintf(gp, "set title ''\n");
   fprintf(gp, "set multiplot layout 4,1 title '%s' \n", title);    // set subplots layout
   fprintf(gp, "set label 1 'Average' at screen 0.12,0.99 center font \",13\"\n");  // label to indicate average
@@ -601,7 +604,7 @@ void plotallIndividualRun(int r, int m)
   sprintf(str, "u%d.dat", r); prep_file(udata, str); 
   sprintf(str, "gp%d.dat", r); prep_file(gpdata, str);  
   FILE * gp = popen ("gnuplot -persistent", "w"); // open gnuplot in persistent mode
-  sprintf(title, "b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, x0:%.2f, vc:%d%d%d, vl:%d%d%d", b, K, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10));
+  sprintf(title, "n:%d, b:%.1f, K:%d, k:%.1f, delta:%.1f, Theta:%.1f, cx:%.1f, cy:%.1f, cz:%.1f, x0:%.2f, vc:%d%d%d, vl:%d%d%d", n, b, K, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10));
   fprintf(gp, "set key outside vertical  spacing 1 width 1 height -2\n");        
   if(m){ // save graphs as file
     sprintf(xpng, "g%02dn%02dK%02db%0.2fk%.2fdelta%.2ftheta%.2fcx%.2fcy%.2fcz%.2fx0%.2fvc%d%d%dvl:%d%d%d_%d.png", G, n, K, b, k, delta, Theta, cx, cy, cz, x_0, (int)(Vc1*10), (int)(Vc2*10), (int)(Vc3*10), (int)(Vl1*10), (int)(Vl2*10), (int)(Vl3*10), r); 
@@ -621,7 +624,7 @@ void plotallIndividualRun(int r, int m)
   fprintf(gp, "stats '%s' using 2 prefix 'E' nooutput\n", gpdata);  
   
 
-  fprintf(gp, "set xlabel 'Time' \n");
+  fprintf(gp, "set xlabel 'Time(X%lu)' \n", (unsigned long)SKIP);
   fprintf(gp, "set title ''\n");
   fprintf(gp, "set multiplot layout 4,1 title '%s' \n", title);    // set subplots layout
   fprintf(gp, "set label 1 'run: %d' at screen 0.13,0.98 center font \",13\"\n", r);  // label to indicate individual run index
@@ -678,6 +681,54 @@ void plotallIndividualRun(int r, int m)
   pclose(gp);  
 }
 
+
+void testGPlot(char *data, int r)
+{   
+  FILE *gp = popen("gnuplot -persistent", "w");
+  //fprintf(gp, "set key outside vertical spacing 1 width 1 height 4\n");       
+  fprintf(gp, "set key outside vertical\n");   
+  fprintf(gp, "set term x11 dashed %d \n", 0);
+  fprintf(gp, "set lmargin at screen 0.1 \n");
+  fprintf(gp, "set rmargin at screen 0.86 \n");
+  //set tmargin at screen 0.97
+  //set bmargin at screen 0.6  
+  fprintf(gp, "stats '%s' using 2 prefix 'A' nooutput\n", data);
+  fprintf(gp, "stats '%s' using 3 prefix 'B' nooutput\n", data);
+  fprintf(gp, "stats '%s' using 4 prefix 'C' nooutput\n", data);
+  fprintf(gp, "stats '%s' using 5 prefix 'D' nooutput\n", data); 
+  
+  fprintf(gp, "set xlabel 'Time(X%lu)' \n", (unsigned long)SKIP);
+  fprintf(gp, "set title ''\n");
+  fprintf(gp, "set multiplot layout 2,1 title '%s, G:%d' \n", "Group dynamics", TestG);    // set subplots layout
+  fprintf(gp, "set label 1 'run: %d' at screen 0.13,0.98 center font \",13\"\n", r);  // label to indicate individual run index
+  
+  fprintf(gp, "unset autoscale y\n");
+  fprintf(gp, "ymax = A_max\n");
+  fprintf(gp, "if(B_max > A_max) {ymax = B_max}\n");  
+  fprintf(gp, "if(ymax < C_max) {ymax = C_max}\n");
+  fprintf(gp, "if(ymax <= 0.0) {ymax = 1.0}\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 mirror\n");
+  fprintf(gp, "set yrange [0:ymax+ymax/10]\n");    
+  fprintf(gp, "set key outside vertical height -1\n");  
+  fprintf(gp, "set ylabel 'efforts' \n");  
+  fprintf(gp, "plot for [col=2:%d] '%s' using 1:col with lines lw 2 title columnheader \n", 4, data);
+  
+  fprintf(gp, "set ylabel 'P' \n");
+  fprintf(gp, "ymax = D_max\n");  
+  fprintf(gp, "if(ymax < 0.05) {ymax = 1.0}\n");
+  fprintf(gp, "set yrange [0:ymax+0.01]\n");
+  fprintf(gp, "set format y \"%%.2f\"\n");
+  fprintf(gp, "set ytics ymax/3 nomirror\n");
+  fprintf(gp, "plot '%s' using 1:%d with lines lw 2 title columnheader \n",data, 5);
+  
+  fprintf(gp, "unset label 1\n");
+  fprintf(gp, "unset multiplot\n");
+  
+  fflush(gp);
+  pclose(gp);  
+}
+
 double P(double X, double SX)
 /*
  * X : group effort
@@ -688,6 +739,7 @@ double P(double X, double SX)
   return X/( X + n*x_0 );
 #endif
 #if UsVsNature_Them == 2  // us vs them
+  if(SX == 0.0) return 1.0;
   return (X*G) / SX;
 #endif
 }
@@ -734,9 +786,10 @@ double F(double X, double y, double z, unsigned int *x0, unsigned int *x1, doubl
 {
   int i;
   double s;
+  //printf("\n");
   for(s = 0, i = 0; i < n; i++){
     x1[i] = f(x0[i], X, y, z, SX);                // new forecasted efforts of commoners
-    s += x1[i];
+    s += x1[i];    
   }
   return s;
 }
@@ -748,16 +801,24 @@ double F(double X, double y, double z)
   double _s = s(X);
   double B = (1.0 - Theta)*b;
   double C = cx - k*y - (_s*z)/(1.0-_s);
+  if(C <= 0.0) return n;                      // to avoid division by zero and negative C
 #if UsVsNature_Them == 1  
-  double X0 = n*x_0;
+  double X0 = n*x_0;  
   double R = B/(C*X0);
-  if(R > 1.0)
-    return X0*(sqrt(R) - 1.0);
+  double X1;
+  if(R > 1.0){
+    X1 = X0*(sqrt(R) - 1.0);
+    if(X1 > n) return n;                    // X' cannot be greater than n
+    return X1;
+  }
   else
     return 0;
 #endif
 #if UsVsNature_Them == 2
-  return B/C;
+  double X1;
+  X1 = B/C;
+  if(X1 > n) return n;
+  return X1;
 #endif
 }
 #endif
@@ -765,7 +826,7 @@ double F(double X, double y, double z)
 // returns utility function leader trying to maximize
 double u_l(double y, double z, double X1, double X2, double SX2)
 {
-  return -cy*n*y - cz*z - delta*(n-X1)*y + Theta*n*b*P(X2, SX2);
+  return -cy*n*y - cz*z - delta*(n-X1)*y + Theta*n*b*P(X2, SX2); 
 }
 
 // calculates group effort X
@@ -808,14 +869,10 @@ void calcPayoff(int j)
 	com->pi -= k;                                        // payoff after punishment from leader with probability y
 	cp += delta;
       }
-    }
-    
+    }    
   }
   // update payoff of leader
-  ld->pi = g->theta*n*b*g->P -cy*n*ld->y -cz*ld->z -cp; // payoff due to group production - cost of y - cost of punishing   
-  if(ld->pi > 0.0){
-    //printf("seed: %lu, y: %.3lf, z: %.3lf, theta: %.2lf, j: %d\n", Seed_i, ld->y, ld->z, g->theta, j);
-  }
+  ld->pi = g->theta*n*b*g->P -cy*n*ld->y -cz*ld->z -cp; // payoff due to group production - cost of y - cost of punishing     
 }
 
 void calcUtilityFunction(int j, double SX)
@@ -880,6 +937,26 @@ void updateStrategyCommoner(int v, int j, int i, double y, double z, double SX)
   }
 }
 
+int updateY0rZ()
+{
+  int rp;
+  double yzp;
+  yzp = U01();
+  if(yzp < 0.25){
+    rp = 0;
+  }
+  else if(yzp < 0.5){
+    rp = 1;
+  }
+  else if(yzp < 0.75){
+    rp = 2;
+  }
+  else{
+    rp = 3;
+  }
+  return rp;
+}
+
 // updates strategy of leader // random mutation
 void updateStrategyLeader_V1(int j)
 {
@@ -887,16 +964,17 @@ void updateStrategyLeader_V1(int j)
   Leader *ld;
   g = Polity->g+j;
   ld = g->lead;    
-#if UPDATE_LEAD_PUN_EFFORT
+  int rp = updateY0rZ();
+  if(UPDATE_LEAD_PUN_EFFORT == 1 && (rp == 0 || rp == 2)){
     ld->y = normal(ld->y, Sigma);
     ld->y = MAX(ld->y, 0.0);
     ld->y = MIN(ld->y, 1.00);
-#endif
-#if UPDATE_LEAD_NORM_EFFORT
+  }
+  if(UPDATE_LEAD_NORM_EFFORT == 1 && (rp == 1 || rp == 2)){
     ld->z = normal(ld->z, Sigma);
     ld->z = MAX(ld->z, 0.0);
     ld->z = MIN(ld->z, 1.00);
-#endif
+  }
 }
 
 // updates strategy of leader // selective copying
@@ -906,19 +984,21 @@ void updateStrategyLeader_V2(int j)
   Leader *ld;
   g = Polity->g+j;
   ld = g->lead;
+  int rp = updateY0rZ();
   int a = j;
   if(G > 1){
     do{ a = rnd(G); }while( a == j);                                   // select another group in polity
     if(Polity->g[a].lead[0].pi > ld->pi){                              // if leader in selected group has higher payoff copy strategy
-#if UPDATE_LEAD_PUN_EFFORT
-      ld->y = (Polity->g+a)->lead->y;                          // copy punishment effort	
-#endif
-#if UPDATE_LEAD_NORM_EFFORT
-      ld->z = (Polity->g+a)->lead->z;                          // copy norm effort
-#endif
+      if( UPDATE_LEAD_PUN_EFFORT == 1 && (rp == 0 || rp == 2)){
+	ld->y = (Polity->g+a)->lead->y;                          // copy punishment effort
+      }
+      if(UPDATE_LEAD_NORM_EFFORT == 1 && (rp == 1 || rp == 2)){
+	ld->z = (Polity->g+a)->lead->z;                          // copy norm effort
+      }
     }
   }
 }
+
 
 // updates strategy of leader // myopic optimization
 // Note: this method changes value of x0 array 
@@ -935,8 +1015,12 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
   g = Polity->g+j;
   ld = g->lead;  
   
-  int i;
+  int i, rp;
   double X1, SX1, s;
+  // choose to update y or z or both or neither
+  rp = updateY0rZ();
+  if(rp == 3) return;     // no update
+    
 #if PIB_MFA == 1
   unsigned int *x1 = malloc(n*sizeof(unsigned int));             // new forecasted efforts by commoners which sum up to X1 group effort
 #endif
@@ -945,25 +1029,28 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
   double *z = calloc((K+1),sizeof(double));
   double *ul = malloc((K+1)*sizeof(double));                    // utility function array    
   dist *ul_dist = allocdist(K+1);                               // utility function distribution array  
+  double ul_avg;
   
   // candidate strategies
   y[0] = ld->y;
   z[0] = ld->z;  
-  for(i = 1; i < K+1; i++){
-#if UPDATE_LEAD_PUN_EFFORT
-    y[i] = normal(ld->y, Sigma);
-    y[i] = MAX(y[i], 0.0);
-    y[i] = MIN(y[i], 1.00);
-#else
-    y[i] = ld->y;
-#endif
-#if UPDATE_LEAD_NORM_EFFORT
-    z[i] = normal(ld->z, Sigma);
-    z[i] = MAX(z[i], 0.0);
-    z[i] = MIN(z[i], 1.0);
-#else
-    z[i] = ld->z;
-#endif         
+  for(i = 1; i < K+1; i++){    
+    if(UPDATE_LEAD_PUN_EFFORT == 1 && (rp == 0 || rp == 2)){
+      y[i] = normal(ld->y, Sigma);
+      y[i] = MAX(y[i], 0.0);
+      y[i] = MIN(y[i], 1.00);
+    }
+    else{
+      y[i] = ld->y;
+    }    
+    if(UPDATE_LEAD_NORM_EFFORT == 1 && (rp == 1 || rp == 2)){
+      z[i] = normal(ld->z, Sigma);
+      z[i] = MAX(z[i], 0.0);
+      z[i] = MIN(z[i], 1.0);
+    }
+    else{
+      z[i] = ld->z;
+    }     
   }
 #if PIB_MFA == 1      // Predicting individual behavior
   X1 = F(X, ld->y, ld->z, x0, x1, SX);                      // forecasted X for present y and z
@@ -972,7 +1059,6 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
 #endif
   
   SX1 = SX - X + X1;                                        // new sum of group efforts across all groups
-  
   for(s = 0, i = 0; i < K+1; i++){      
 #if PIB_MFA == 1
     X2[i] = F(X1, y[i], z[i], x1, x0, SX1);                 // next round forecasted group effort by commoners
@@ -980,17 +1066,19 @@ void updateStrategyLeader_V3(int j, unsigned int *x0, double X, double SX)
     X2[i] = F(X1, y[i], z[i]);
 #endif
     ul[i] = u_l(y[i], z[i], X1, X2[i], SX1-X1+X2[i]);                    // utility function
-    ul_dist->p[i] = exp(ul[i]*Lambda);
-    ul_dist->p[i] = MAX(ul_dist->p[i], 0.0);
+    s += ul[i];     
+  }  
+  ul_avg = s/(K+1);                                         // average ul    
+  for(s = 0, i = 0; i < K+1; i++){
+    ul_dist->p[i] = exp( (ul[i]-ul_avg)*Lambda );
     s += ul_dist->p[i];
   }
-  if(s > 0.0){
-    initdist(ul_dist, s);                                      // initialize distribution
-    // update y and z
-    i = drand(ul_dist);
-    ld->y = y[i];
-    ld->z = z[i];
-  }
+  initdist(ul_dist, s);                                      // initialize distribution
+  // update y and z
+  i = drand(ul_dist);
+  ld->y = y[i];
+  ld->z = z[i];  
+  
 #if PIB_MFA == 1
   free(x1); 
 #endif
@@ -1053,8 +1141,9 @@ void playGame()
     calcP(j, SX);                   // updates group production value for each group
     calcPayoff(j);                  // updates payoff of groups
     calcUtilityFunction(j, SX);
-    updateStrategy(j, SX);             // updates strategy for group j
+    updateStrategy(j, SX);             // updates strategy for group j    
   }
+  
 }
 
 // initialize variables
@@ -1110,6 +1199,10 @@ int main(int argc, char **argv)
     printf("READDATA: Can't process %s \n", argv[1]);
     return 1;
   }    
+  if(TestPlot && TestG >= G){
+    printf("\n Program terminated! Error: TestG (test group index) must be less than G. Note: [index starts from 0] \n");
+    exit(1);
+  }
   if(s0 > 1.0){
     printf("s0 value should be less than 1.0\n");
     exit(1);
@@ -1118,10 +1211,16 @@ int main(int argc, char **argv)
     printf("s0+s1 value should be less than 1.0\n");
     exit(1);
   }
+  
   initrand(Seed);
   allocStatVar();                                             // allocate memory for global statistic variables
-  int r, i;
-  unsigned long seed;  
+  
+#if TestPlot
+  FILE *fgr;
+  group *tG;  
+#endif  
+  
+  int r, i;  
 #if !ALLDATAFILE
   char xdata[200], str[30];
 #endif
@@ -1135,26 +1234,38 @@ int main(int argc, char **argv)
     // initialize pseudorandom generator with seed
     if(Seed == 0){      
       now = time(0);
-      seed = ((unsigned long)now) + r;  
+      Seed_i = ((unsigned long)now) + r;  
     }
     else{
-      seed = Seed;
+      Seed_i = Seed;
     }
-    Seed_i = seed;
-    initrand(seed);      
+    initrand(Seed_i);      
+    // uncomment line below to get seed in case you got core dump and want to get seed to replicate bug
+    //printf("\n run# %d seed: %lu\n",r+1, Seed_i);
     
-    //printf("\n run# %d seed: %lu\n",r+1, seed);
     // setup and initialize variables
     setup();                                                  // allocates memory for all polity system variables
     init();                                                   // intialize polity system state values
     calcStat(0, r);
+#if TestPlot
+    tG = Polity->g + TestG;
+    fgr = fopen("testgroup.dat", "w");
+    fprintf(fgr, "T X/n y z P\n");    
+    fprintf(fgr, "%d %.4lf %.4lf %.4lf %.4lf\n", 0, (tG->X)/n, (tG->lead)->y, (tG->lead)->z, tG->P);
+#endif
     for( i = 0; i < T; i++){                                  // through all time points of simulation
       playGame();                                             // play us vs nature and us vs them game and update strategies
       if( (i+1) % SKIP == 0){                                 // every SKIP time, take snapshot of states of traits	
 	calcStat((i+1)/SKIP, r);                              // calculate statistics and write individual runs data to file
+#if TestPlot	
+	fprintf(fgr, "%d %.4lf %.4lf %.4lf %.4lf\n", (i+1)/SKIP, (tG->X)/n, (tG->lead)->y, (tG->lead)->z, tG->P);
+#endif
       }   
     }
     calcStat(-1, -1);                                        // free file pointers for individual run data files
+#if TestPlot	
+    fclose(fgr);	
+#endif
 
 #if !CLUSTER
     
@@ -1174,6 +1285,9 @@ int main(int argc, char **argv)
 	sprintf(str, "u%d.dat", r); prep_file(xdata, str); remove(xdata);
 	sprintf(str, "gp%d.dat", r); prep_file(xdata, str); remove(xdata);           
   #endif
+  #if TestPlot	
+	testGPlot("testgroup.dat", r);              // plots test group dynamics	
+  #endif
       
 #endif
    
@@ -1188,9 +1302,13 @@ int main(int argc, char **argv)
   plotall(1);
 #endif
 #endif    
+  #if TestPlot	
+	remove("testgroup.dat");              // plots test group dynamics	
+  #endif
   
   return 1;
 }
+
 
 /* 
 gcc -Wall -O2 -march=native -pipe -o csi csi.c -lm
@@ -1205,6 +1323,7 @@ gcc -Wall -O2 -march=native -pipe -pg csi.c -o csi -lm
 ./csi csi.config
  gprof csi gmon.out > analysis.txt  
 */
+
 
 
 
